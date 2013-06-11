@@ -34,281 +34,175 @@ var app = (function () {
 
     document.addEventListener("deviceready", onDeviceReady, false);
 
-    var applicationSettings = {
-        emptyGuid: '00000000-0000-0000-0000-000000000000',
-        apiKey: 'wEx9wdnIcxxehNty'
-    };
-
     // initialize Everlive SDK
     var el = new Everlive({
-        apiKey: applicationSettings.apiKey
+        apiKey: "wEx9wdnIcxxehNty"
     });
+    
+    var mimeMap = {
+        jpg  : "image/jpeg",
+        jpeg : "image/jpeg",
+        png  : "image/png",
+        gif  : "image/gif"
+    };
 
     var AppHelper = {
-        resolveProfilePictureUrl: function (id) {
-            if (id && id !== applicationSettings.emptyGuid) {
-                return el.Files.getDownloadUrl(id);
-            }
-            else {
-                return 'styles/images/avatar.png';
-            }
-        },
-        resolvePictureUrl: function (id) {
-            if (id && id !== applicationSettings.emptyGuid) {
+        resolveImageUrl: function (id) {
+            if (id) {
                 return el.Files.getDownloadUrl(id);
             }
             else {
                 return '';
             }
         },
-        formatDate: function (dateString) {
-            var date = new Date(dateString);
-            var year = date.getFullYear().toString();
-            var month = date.getMonth().toString();
-            var day = date.getDate().toString();
-            return day + '.' + month + '.' + year;
+        getBase64ImageFromInput : function (input, cb) {
+            var reader = new FileReader();
+            reader.onloadend = function (e) {
+                if (cb)
+                    cb(e.target.result);
+            };
+            reader.readAsDataURL(input);
         },
-        logout: function () {
-            return el.Users.logout();
+        getImageFileObject: function(input, cb) {
+            var name = input.name;
+            var ext = name.substr(name.lastIndexOf('.') + 1);
+            var mimeType = mimeMap[ext];
+            if(mimeType) {
+                this.getBase64ImageFromInput(input, function(base64) {
+                    var res = {
+                        "Filename"    : name,
+                        "ContentType" : mimeType,              
+                        "base64"      : base64.substr(base64.lastIndexOf('base64,')+7)
+                    }
+                    cb(null, res);
+                });
+            } else {
+                cb("File type not supported: " + ext);    
+            }
         }
     };
 
     var mobileApp = new kendo.mobile.Application(document.body, { transition: 'slide', layout: 'mobile-tabstrip' });
-
-    var usersModel = (function () {
-        var currentUser = kendo.observable({ data: null });
-        var usersData;
-        var loadUsers = function () {
-            return el.Users.currentUser()
-            .then(function (data) {
-                var currentUserData = data.result;
-                currentUserData.PictureUrl = AppHelper.resolveProfilePictureUrl(currentUserData.Picture);
-                currentUser.set('data', currentUserData);
-                return el.Users.get();
-            })
-            .then(function (data) {
-                usersData = new kendo.data.ObservableArray(data.result);
-            })
-            .then(null,
-                  function (err) {
-                      showError(err.message);
-                  }
-            );
-        };
-        return {
-            load: loadUsers,
-            users: function () {
-                return usersData;
-            },
-            currentUser: currentUser
-        };
-    }());
-
-    // login view model
-    var loginViewModel = (function () {
-        var login = function () {
-            var username = $('#loginUsername').val();
-            var password = $('#loginPassword').val();
-
-            el.Users.login(username, password)
-            .then(function () {
-                return usersModel.load();
-            })
-            .then(function () {
-                mobileApp.navigate('views/activitiesView.html');
-            })
-            .then(null,
-                  function (err) {
-                      showError(err.message);
-                  }
-            );
-        };
-        return {
-            login: login
-        };
-    }());
-
-    // signup view model
-    var singupViewModel = (function () {
-        var dataSource;
-        var signup = function () {
-            dataSource.Gender = parseInt(dataSource.Gender);
-            var birthDate = new Date(dataSource.BirthDate);
-            if (birthDate.toJSON() === null)
-                birthDate = new Date();
-            dataSource.BirthDate = birthDate;
-            Everlive.$.Users.register(
-                dataSource.Username,
-                dataSource.Password,
-                dataSource)
-            .then(function () {
-                showAlert("Registration successful");
-                mobileApp.navigate('#welcome');
-            },
-                  function (err) {
-                      showError(err.message);
-                  }
-            );
-        };
-        var show = function () {
-            dataSource = kendo.observable({
-                Username: '',
-                Password: '',
-                DisplayName: '',
-                Email: '',
-                Gender: '1',
-                About: '',
-                Friends: [],
-                BirthDate: new Date()
-            });
-            kendo.bind($('#signup-form'), dataSource, kendo.mobile.ui);
-        };
-        return {
-            show: show,
-            signup: signup
-        };
-    }());
-
-    var activitiesModel = (function () {
-        var activityModel = {
+    
+    var imagesViewModel = (function () {
+        var imagesModel = {
             id: 'Id',
             fields: {
-                Text: {
-                    field: 'Text',
+                Title: {
+                    field: 'Title',
                     defaultValue: ''
-                },
-                CreatedAt: {
-                    field: 'CreatedAt',
-                    defaultValue: new Date()
                 },
                 Picture: {
                     fields: 'Picture',
                     defaultValue: ''
-                },
-                UserId: {
-                    field: 'UserId',
-                    defaultValue: ''
-                },
-                Likes: {
-                    field: 'Likes',
-                    defaultValue: []
                 }
             },
-            CreatedAtFormatted: function () {
-                return AppHelper.formatDate(this.get('CreatedAt'));
-            },
             PictureUrl: function () {
-                return AppHelper.resolvePictureUrl(this.get('Picture'));
-            },
-            User: function () {
-                var userId = this.get('UserId');
-                var user = $.grep(usersModel.users(), function (e) {
-                    return e.Id === userId;
-                })[0];
-                return user ? {
-                    DisplayName: user.DisplayName,
-                    PictureUrl: AppHelper.resolveProfilePictureUrl(user.Picture)
-                } : {
-                    DisplayName: 'Anonymous',
-                    PictureUrl: AppHelper.resolveProfilePictureUrl()
-                };
+                return AppHelper.resolveImageUrl(this.get('Picture'));
             }
         };
-        var activitiesDataSource = new kendo.data.DataSource({
+        var imagesDataSource = new kendo.data.DataSource({
             type: 'everlive',
             schema: {
-                model: activityModel
+                model: imagesModel
             },
             transport: {
-                // required by Everlive
-                typeName: 'Activities'
+                typeName: 'Images'
             },
             change: function (e) {
                 if (e.items && e.items.length > 0) {
-                    $('#no-activities-span').hide();
+                    $('#no-images-span').hide();
                 }
                 else {
-                    $('#no-activities-span').show();
+                    $('#no-images-span').show();
                 }
             },
-            sort: { field: 'CreatedAt', dir: 'desc' }
+            sort: { field: 'Title', dir: 'asc' }
         });
         return {
-            activities: activitiesDataSource
+            images: imagesDataSource
         };
     }());
-
-    // activities view model
-    var activitiesViewModel = (function () {
-        var activitySelected = function (e) {
-            mobileApp.navigate('views/activityView.html?uid=' + e.data.uid);
-        };
-        var navigateHome = function () {
-            mobileApp.navigate('#welcome');
-        };
-        var logout = function () {
-            AppHelper.logout()
-            .then(navigateHome, function (err) {
-                showError(err.message);
-                navigateHome();
-            });
-        };
-        return {
-            activities: activitiesModel.activities,
-            activitySelected: activitySelected,
-            logout: logout
-        };
-    }());
-
-    // activity details view model
-    var activityViewModel = (function () {
-        return {
-            show: function (e) {
-                var activity = activitiesModel.activities.getByUid(e.view.params.uid);
-                kendo.bind(e.view.element, activity, kendo.mobile.ui);
-            }
-        };
-    }());
-
-    // add activity view model
-    var addActivityViewModel = (function () {
-        var $newStatus;
+    
+    // add image view model
+    var addImageViewModel = (function () {
+        var $newTitle;
+        var $newPicture;
+        var $picName;
+        var $picInfo;
+        var $newPicLabel;
         var validator;
         var init = function () {
-            validator = $('#enterStatus').kendoValidator().data("kendoValidator");
-            $newStatus = $('#newStatus');
+            validator = $('#enterItem').kendoValidator().data("kendoValidator");
+            $newTitle = $('#newTitle');
+            $picName = $('#picName');
+            $newPicture = $('#newPicture');    
+            $newPicLabel = $('#newPicLabel');
+            $picInfo = $("#picInfo");
         };
         var show = function () {
-            $newStatus.val('');
+            $newTitle.val('');
+            $newPicture.val('').show();
+            $newPicLabel.show();
+            $picInfo.hide();
             validator.hideMessages();
         };
-        var saveActivity = function () {
+        var saveItem = function () {
             if (validator.validate()) {
-                var activities = activitiesModel.activities;
-                var activity = activities.add();
-                activity.Text = $newStatus.val();
-                activity.UserId = usersModel.currentUser.get('data').Id;
-                activities.one('sync', function () {
-                    mobileApp.navigate('#:back');
-                });
-                activities.sync();
+                AppHelper.getImageFileObject(
+                    $newPicture[0].files[0],
+                    function( err, fileObj ) {
+                        if(err) {
+                            navigator.notification.alert(err);    
+                            return;
+                        }
+                        $.ajax({
+                            type: "POST",
+                            url: 'https://api.everlive.com/v1/wEx9wdnIcxxehNty/Files',
+                            contentType: "application/json",
+                            data: JSON.stringify(fileObj),
+                            error: function(error){
+                                navigator.notification.alert(JSON.stringify(error));
+                            }
+                        }).done(function(data){
+                            var item = imagesViewModel.images.add();
+                            item.Title = $newTitle.val();
+                            item.Picture = data.Result.Id;
+                            imagesViewModel.images.one('sync', function () {
+                                mobileApp.navigate('#:back');
+                            });
+                            imagesViewModel.images.sync();
+                        });
+                    }
+                );                
+                
             }
+        };
+        var onPicSet = function(e) {
+            $picName.text($newPicture[0].files[0].name);
+            $picInfo.show();
+            $newPicture.hide();
+            $newPicLabel.hide();
+        };
+        var removePic = function() {
+            $picName.text("");
+            $picInfo.hide();
+            $newPicture.val('').show();
+            $newPicLabel.show();
         };
         return {
             init: init,
             show: show,
-            me: usersModel.currentUser,
-            saveActivity: saveActivity
+            saveItem: saveItem,
+            onPicSet: onPicSet,
+            removePic : removePic
         };
     }());
 
     return {
         viewModels: {
-            login: loginViewModel,
-            signup: singupViewModel,
-            activities: activitiesViewModel,
-            activity: activityViewModel,
-            addActivity: addActivityViewModel
+            images: imagesViewModel,
+            addImage : addImageViewModel
         }
     };
 }());

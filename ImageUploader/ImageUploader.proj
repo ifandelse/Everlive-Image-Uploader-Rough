@@ -70,11 +70,6 @@
     <Content Include="styles\images\avatar.png" />
     <Content Include="styles\images\border.png" />
     <Content Include="styles\images\sprite.png" />
-    <Content Include="styles\main.css" />
-    <Content Include="views\activitiesView.html" />
-    <Content Include="views\activityView.html" />
-    <Content Include="views\addActivityView.html" />
-    <Content Include="views\signupView.html" />
     <Content Include="cordova.ios.js">
       <Platform>iOS</Platform>
       <TargetName>cordova.js</TargetName>
@@ -83,6 +78,8 @@
       <Platform>Android</Platform>
       <TargetName>cordova.js</TargetName>
     </Content>
+    <Content Include="styles\main.css" />
+    <Content Include="views\addImage.html" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\Telerik\ICE\Tools\Mobile\MobileTools.targets" />
 </Project>
