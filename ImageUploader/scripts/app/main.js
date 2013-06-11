@@ -124,8 +124,69 @@ var app = (function () {
         };
     }());
     
+    // **************************************************
+    //           new view model for add picture
+    // **************************************************
+    var $newPicture;
+  
+    var observable = {
+        picName: '',
+        picTitle: '',
+        picSelected: false,
+        onPicSet: function(e) {
+            this.set('picSelected', true);
+            this.set('picName', e.target.files[0].name);
+        },
+        onRemovePic: function() {
+            this.set("picSelected", false);
+            // reset the file upload selector
+            $newPicture = $newPicture || $("#newPicture");
+            $newPicture.replaceWith($newPicture = $newPicture.clone(true));
+        },
+        onAddPic: function() {
+            $newPicture = $newPicture || $("#newPicture");
+            $newPicture.click();
+        },
+        saveItem: function() {
+            var that = this;
+            $newPicture = $newPicture || $("#newPicture");
+            AppHelper.getImageFileObject(
+                $newPicture[0].files[0],
+                function( err, fileObj ) {
+                    if(err) {
+                        navigator.notification.alert(err);    
+                        return;
+                    }
+                    $.ajax({
+                        type: "POST",
+                        url: 'https://api.everlive.com/v1/wEx9wdnIcxxehNty/Files',
+                        contentType: "application/json",
+                        data: JSON.stringify(fileObj),
+                        error: function(error){
+                            navigator.notification.alert(JSON.stringify(error));
+                        }
+                    }).done(function(data){
+                        var item = imagesViewModel.images.add();
+                        item.Title = that.get('picTitle');
+                        item.Picture = data.Result.Id;
+                        imagesViewModel.images.one('sync', function () {
+                            mobileApp.navigate('#:back');
+                        });
+                        imagesViewModel.images.sync();
+                        
+                        // reset the form
+                        that.set("picSelected", false);
+                        $newPicture.replaceWith($newPicture = $newPicture.clone(true));
+                    });
+                }
+            );          
+        }
+    };
+    // ***************** END ****************************
+
     // add image view model
     var addImageViewModel = (function () {
+        var picName = "";
         var $newTitle;
         var $newPicture;
         var $picName;
@@ -172,6 +233,7 @@ var app = (function () {
                                 mobileApp.navigate('#:back');
                             });
                             imagesViewModel.images.sync();
+                            picSelected = false;
                         });
                     }
                 );                
@@ -180,7 +242,7 @@ var app = (function () {
         };
         var onPicSet = function(e) {
             $picName.text($newPicture[0].files[0].name);
-            $picInfo.show();
+            observable.set("picSelected", true);
             $newPicture.hide();
             $newPicLabel.hide();
         };
@@ -202,7 +264,7 @@ var app = (function () {
     return {
         viewModels: {
             images: imagesViewModel,
-            addImage : addImageViewModel
+            addImage : observable
         }
     };
 }());
